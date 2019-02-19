@@ -7,7 +7,7 @@ namespace PrjFSLib.Linux.Interop
     {
         // TODO(Linux): set value from that defined in Linux library header
         public const int PlaceholderIdLength = 128;
-        private const string PrjFSLibPath = "libprojfs.so";
+        private const string PrjFSLibPath = "libprojfs-vfsapi.so";
 
         // TODO(Linux): revise library functions for Linux
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_StartVirtualizationInstance")]
