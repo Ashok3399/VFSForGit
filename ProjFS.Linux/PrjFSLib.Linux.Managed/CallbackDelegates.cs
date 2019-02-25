@@ -19,7 +19,7 @@ namespace PrjFSLib.Linux
         byte[] contentId,
         int triggeringProcessId,
         string triggeringProcessName,
-        IntPtr fileHandle);
+        int fd);
 
     public delegate Result NotifyOperationCallback(
         ulong commandId,
