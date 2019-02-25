@@ -7,9 +7,9 @@ namespace PrjFSLib.Linux
 {
     public class VirtualizationInstance
     {
-        public const int PlaceholderIdLength = Interop.PrjFSLib.PlaceholderIdLength;
+        public const int PlaceholderIdLength = Interop.ProjFS.PlaceholderIdLength;
 
-        private Interop.PrjFSLib.Fs mountHandle;
+        private Interop.ProjFS mountHandle;
 
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
@@ -31,26 +31,26 @@ namespace PrjFSLib.Linux
                 throw new InvalidOperationException();
             }
 
-            Interop.PrjFSLib.Handlers handlers = new Interop.PrjFSLib.Handlers
+            Interop.ProjFS.Handlers handlers = new Interop.ProjFS.Handlers
             {
                 HandleProjEvent = this.HandleProjEvent,
                 HandleNotifyEvent = this.HandleNotifyEvent,
                 HandlePermEvent = this.HandlePermEvent,
             };
 
-            Interop.PrjFSLib.Fs fs = Interop.PrjFSLib.New(
+            Interop.ProjFS fs = Interop.ProjFS.New(
                 storageRootFullPath,
                 virtualizationRootFullPath,
-                 handlers);
+                handlers);
 
             if (fs == null)
             {
                 return Result.Invalid;
             }
 
-            if (Interop.PrjFSLib.Start(fs) != 0)
+            if (fs.Start() != 0)
             {
-                Interop.PrjFSLib.Stop(fs);
+                fs.Stop();
                 return Result.Invalid;
             }
 
@@ -60,7 +60,12 @@ namespace PrjFSLib.Linux
 
         public virtual void StopVirtualizationInstance()
         {
-            Interop.PrjFSLib.Stop(this.mountHandle);
+            if (this.mountHandle == null)
+            {
+                return;
+            }
+
+            this.mountHandle.Stop();
             this.mountHandle = null;
         }
 
@@ -72,10 +77,10 @@ namespace PrjFSLib.Linux
             GCHandle bytesHandle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
             try
             {
-                return Interop.PrjFSLib.WriteFileContents(
+                return this.mountHandle.WriteFileContents(
                     fd,
                     bytesHandle.AddrOfPinnedObject(),
-                    byteCount).ConvertErrnoToResult();
+                    byteCount);
             }
             finally
             {
@@ -105,7 +110,7 @@ namespace PrjFSLib.Linux
         public virtual Result WritePlaceholderDirectory(
             string relativePath)
         {
-            return Interop.PrjFSLib.CreateProjDir(this.mountHandle, relativePath).ConvertErrnoToResult();
+            return this.mountHandle.CreateProjDir(relativePath);
         }
 
         public virtual Result WritePlaceholderFile(
@@ -115,27 +120,25 @@ namespace PrjFSLib.Linux
             ulong fileSize,
             ushort fileMode)
         {
-            if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength ||
-                contentId.Length != Interop.PrjFSLib.PlaceholderIdLength)
+            if (providerId.Length != Interop.ProjFS.PlaceholderIdLength ||
+                contentId.Length != Interop.ProjFS.PlaceholderIdLength)
             {
                 throw new ArgumentException();
             }
 
-            return Interop.PrjFSLib.CreateProjFile(
-                this.mountHandle,
+            return this.mountHandle.CreateProjFile(
                 relativePath,
                 fileSize,
-                fileMode).ConvertErrnoToResult();
+                fileMode);
         }
 
         public virtual Result WriteSymLink(
             string relativePath,
             string symLinkTarget)
         {
-            return Interop.PrjFSLib.CreateProjSymlink(
-                this.mountHandle,
+            return this.mountHandle.CreateProjSymlink(
                 relativePath,
-                symLinkTarget).ConvertErrnoToResult();
+                symLinkTarget);
         }
 
         public virtual Result UpdatePlaceholderIfNeeded(
@@ -228,12 +231,12 @@ namespace PrjFSLib.Linux
             }
         }
 
-        private int HandleProjEvent(ref Interop.PrjFSLib.Event ev)
+        private int HandleProjEvent(ref Interop.ProjFS.Event ev)
         {
             string triggeringProcessName = GetProcCmdline(ev.Pid);
             Result result;
 
-            if ((ev.Mask & Interop.PrjFSLib.PROJFS_ONDIR) != 0)
+            if ((ev.Mask & Interop.ProjFS.PROJFS_ONDIR) != 0)
             {
                 result = this.OnEnumerateDirectory(
                     commandId: 0,
@@ -246,8 +249,8 @@ namespace PrjFSLib.Linux
                 result = this.OnGetFileStream(
                     commandId: 0,
                     relativePath: PtrToStringUTF8(ev.Path),
-                    providerId: new byte[Interop.PrjFSLib.PlaceholderIdLength],
-                    contentId: new byte[Interop.PrjFSLib.PlaceholderIdLength],
+                    providerId: new byte[Interop.ProjFS.PlaceholderIdLength],
+                    contentId: new byte[Interop.ProjFS.PlaceholderIdLength],
                     triggeringProcessId: ev.Pid,
                     triggeringProcessName: triggeringProcessName,
                     fd: ev.Fd);
@@ -256,19 +259,19 @@ namespace PrjFSLib.Linux
             return result.ConvertResultToErrno();
         }
 
-        private int HandleNonProjEvent(ref Interop.PrjFSLib.Event ev, bool perm)
+        private int HandleNonProjEvent(ref Interop.ProjFS.Event ev, bool perm)
         {
             NotificationType nt;
 
-            if ((ev.Mask & Interop.PrjFSLib.PROJFS_DELETE_SELF) != 0)
+            if ((ev.Mask & Interop.ProjFS.PROJFS_DELETE_SELF) != 0)
             {
                 nt = NotificationType.PreDelete;
             }
-            else if ((ev.Mask & Interop.PrjFSLib.PROJFS_MOVE_SELF) != 0)
+            else if ((ev.Mask & Interop.ProjFS.PROJFS_MOVE_SELF) != 0)
             {
                 nt = NotificationType.FileRenamed;
             }
-            else if ((ev.Mask & Interop.PrjFSLib.PROJFS_CREATE_SELF) != 0)
+            else if ((ev.Mask & Interop.ProjFS.PROJFS_CREATE_SELF) != 0)
             {
                 nt = NotificationType.NewFileCreated;
             }
@@ -282,11 +285,11 @@ namespace PrjFSLib.Linux
             Result result = this.OnNotifyOperation(
                 commandId: 0,
                 relativePath: PtrToStringUTF8(ev.Path),
-                providerId: new byte[Interop.PrjFSLib.PlaceholderIdLength],
-                contentId: new byte[Interop.PrjFSLib.PlaceholderIdLength],
+                providerId: new byte[Interop.ProjFS.PlaceholderIdLength],
+                contentId: new byte[Interop.ProjFS.PlaceholderIdLength],
                 triggeringProcessId: ev.Pid,
                 triggeringProcessName: triggeringProcessName,
-                isDirectory: (ev.Mask & Interop.PrjFSLib.PROJFS_ONDIR) != 0,
+                isDirectory: (ev.Mask & Interop.ProjFS.PROJFS_ONDIR) != 0,
                 notificationType: nt);
 
             int ret = result.ConvertResultToErrno();
@@ -295,23 +298,23 @@ namespace PrjFSLib.Linux
             {
                 if (ret == 0)
                 {
-                    ret = Interop.PrjFSLib.PROJFS_ALLOW;
+                    ret = Interop.ProjFS.PROJFS_ALLOW;
                 }
                 else if (ret == -(int)Errno.EPERM)
                 {
-                    ret = Interop.PrjFSLib.PROJFS_DENY;
+                    ret = Interop.ProjFS.PROJFS_DENY;
                 }
             }
 
             return ret;
         }
 
-        private int HandleNotifyEvent(ref Interop.PrjFSLib.Event ev)
+        private int HandleNotifyEvent(ref Interop.ProjFS.Event ev)
         {
             return this.HandleNonProjEvent(ref ev, false);
         }
 
-        private int HandlePermEvent(ref Interop.PrjFSLib.Event ev)
+        private int HandlePermEvent(ref Interop.ProjFS.Event ev)
         {
             return this.HandleNonProjEvent(ref ev, true);
         }

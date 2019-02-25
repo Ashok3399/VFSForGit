@@ -4,7 +4,7 @@ using Mono.Unix.Native;
 
 namespace PrjFSLib.Linux.Interop
 {
-    internal static class PrjFSLib
+    internal class ProjFS
     {
         // TODO(Linux): set value from that defined in Linux library header
         public const int PlaceholderIdLength = 128;
@@ -22,47 +22,55 @@ namespace PrjFSLib.Linux.Interop
 
         private const string PrjFSLibPath = "libprojfs.so";
 
+        private readonly IntPtr handle;
+
+        private ProjFS(IntPtr handle)
+        {
+            this.handle = handle;
+        }
+
         public delegate int EventHandler(ref Event ev);
 
-        public static Fs New(string lowerdir, string mountdir, Handlers handlers)
+        public static ProjFS New(string lowerdir, string mountdir, Handlers handlers)
         {
-            IntPtr fs = _New(
-                lowerdir,
-                mountdir,
-                ref handlers,
-                (uint)Marshal.SizeOf<Handlers>(),
-                IntPtr.Zero);
+            IntPtr handle = _New(lowerdir, mountdir, ref handlers, (uint)Marshal.SizeOf<Handlers>(), IntPtr.Zero);
+            if (handle == IntPtr.Zero)
+            {
+                return null;
+            }
 
-            return fs == IntPtr.Zero ? null : new Fs(fs);
+            return new ProjFS(handle);
         }
 
-        public static int Start(Fs fs)
+        public int Start()
         {
-            return _Start(fs.Handle);
+            return _Start(this.handle);
         }
 
-        public static void Stop(Fs fs)
+        public void Stop()
         {
-            _Stop(fs.Handle);
+            _Stop(this.handle);
         }
 
-        public static Errno CreateProjDir(Fs fs, string relativePath)
+        public Result CreateProjDir(string relativePath)
         {
-            return _CreateProjDir(fs.Handle, relativePath);
+            return _CreateProjDir(this.handle, relativePath).ConvertErrnoToResult();
         }
 
-        public static Errno CreateProjFile(Fs fs, string relativePath, ulong fileSize, ushort fileMode)
+        public Result CreateProjFile(string relativePath, ulong fileSize, ushort fileMode)
         {
-            return _CreateProjFile(fs.Handle, relativePath, fileSize, fileMode);
+            return _CreateProjFile(this.handle, relativePath, fileSize, fileMode).ConvertErrnoToResult();
         }
 
-        public static Errno CreateProjSymlink(Fs fs, string relativePath, string symlinkTarget)
+        public Result CreateProjSymlink(string relativePath, string symlinkTarget)
         {
-            return _CreateProjSymlink(fs.Handle, relativePath, symlinkTarget);
+            return _CreateProjSymlink(this.handle, relativePath, symlinkTarget).ConvertErrnoToResult();
         }
 
-        [DllImport(PrjFSLibPath, EntryPoint = "projfs_write_file_contents")]
-        public static extern Errno WriteFileContents(int fd, IntPtr bytes, ulong byteCount);
+        public Result WriteFileContents(int fd, IntPtr bytes, ulong byteCount)
+        {
+            return _WriteFileContents(fd, bytes, byteCount).ConvertErrnoToResult();
+        }
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_new")]
         private static extern IntPtr _New(
@@ -87,6 +95,9 @@ namespace PrjFSLib.Linux.Interop
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_symlink")]
         private static extern Errno _CreateProjSymlink(IntPtr fs, string relativePath, string symlinkTarget);
 
+        [DllImport(PrjFSLibPath, EntryPoint = "projfs_write_file_contents")]
+        private static extern Errno _WriteFileContents(int fd, IntPtr bytes, ulong byteCount);
+
         [StructLayout(LayoutKind.Sequential)]
         internal struct Event
         {
@@ -104,16 +115,6 @@ namespace PrjFSLib.Linux.Interop
             public EventHandler HandleProjEvent;
             public EventHandler HandleNotifyEvent;
             public EventHandler HandlePermEvent;
-        }
-
-        public class Fs
-        {
-            internal readonly IntPtr Handle;
-
-            public Fs(IntPtr handle)
-            {
-                this.Handle = handle;
-            }
         }
     }
 }
