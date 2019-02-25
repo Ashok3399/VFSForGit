@@ -22,10 +22,50 @@ namespace PrjFSLib.Linux.Interop
 
         private const string PrjFSLibPath = "libprojfs.so";
 
-        internal delegate int EventHandler(ref Event ev);
+        public delegate int EventHandler(ref Event ev);
+
+        public static Fs New(string lowerdir, string mountdir, Handlers handlers)
+        {
+            IntPtr fs = _New(
+                lowerdir,
+                mountdir,
+                ref handlers,
+                (uint)Marshal.SizeOf<Handlers>(),
+                IntPtr.Zero);
+
+            return fs == IntPtr.Zero ? null : new Fs(fs);
+        }
+
+        public static int Start(Fs fs)
+        {
+            return _Start(fs.Handle);
+        }
+
+        public static void Stop(Fs fs)
+        {
+            _Stop(fs.Handle);
+        }
+
+        public static Errno CreateProjDir(Fs fs, string relativePath)
+        {
+            return _CreateProjDir(fs.Handle, relativePath);
+        }
+
+        public static Errno CreateProjFile(Fs fs, string relativePath, ulong fileSize, ushort fileMode)
+        {
+            return _CreateProjFile(fs.Handle, relativePath, fileSize, fileMode);
+        }
+
+        public static Errno CreateProjSymlink(Fs fs, string relativePath, string symlinkTarget)
+        {
+            return _CreateProjSymlink(fs.Handle, relativePath, symlinkTarget);
+        }
+
+        [DllImport(PrjFSLibPath, EntryPoint = "projfs_write_file_contents")]
+        public static extern Errno WriteFileContents(int fd, IntPtr bytes, ulong byteCount);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_new")]
-        public static extern IntPtr New(
+        private static extern IntPtr _New(
             string lowerdir,
             string mountdir,
             ref Handlers handlers,
@@ -33,22 +73,19 @@ namespace PrjFSLib.Linux.Interop
             IntPtr user_data);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_start")]
-        public static extern int Start(IntPtr fs);
+        private static extern int _Start(IntPtr fs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_stop")]
-        public static extern IntPtr Stop(IntPtr fs);
+        private static extern IntPtr _Stop(IntPtr fs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_dir")]
-        public static extern Errno CreateProjDir(IntPtr fs, string relativePath);
+        private static extern Errno _CreateProjDir(IntPtr fs, string relativePath);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_file")]
-        public static extern Errno CreateProjFile(IntPtr fs, string relativePath, ulong fileSize, ushort fileMode);
+        private static extern Errno _CreateProjFile(IntPtr fs, string relativePath, ulong fileSize, ushort fileMode);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_symlink")]
-        public static extern Errno CreateProjSymlink(IntPtr fs, string relativePath, string symlinkTarget);
-
-        [DllImport(PrjFSLibPath, EntryPoint = "projfs_write_file_contents")]
-        public static extern Errno WriteFileContents(int fd, IntPtr bytes, ulong byteCount);
+        private static extern Errno _CreateProjSymlink(IntPtr fs, string relativePath, string symlinkTarget);
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct Event
@@ -67,6 +104,16 @@ namespace PrjFSLib.Linux.Interop
             public EventHandler HandleProjEvent;
             public EventHandler HandleNotifyEvent;
             public EventHandler HandlePermEvent;
+        }
+
+        public class Fs
+        {
+            internal readonly IntPtr Handle;
+
+            public Fs(IntPtr handle)
+            {
+                this.Handle = handle;
+            }
         }
     }
 }

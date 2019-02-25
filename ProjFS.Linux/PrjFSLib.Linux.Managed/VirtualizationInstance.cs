@@ -9,7 +9,7 @@ namespace PrjFSLib.Linux
     {
         public const int PlaceholderIdLength = Interop.PrjFSLib.PlaceholderIdLength;
 
-        private IntPtr mountHandle = IntPtr.Zero;
+        private Interop.PrjFSLib.Fs mountHandle;
 
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
@@ -26,7 +26,7 @@ namespace PrjFSLib.Linux
             string virtualizationRootFullPath,
             uint poolThreadCount)
         {
-            if (this.mountHandle != IntPtr.Zero)
+            if (this.mountHandle != null)
             {
                 throw new InvalidOperationException();
             }
@@ -38,14 +38,12 @@ namespace PrjFSLib.Linux
                 HandlePermEvent = this.HandlePermEvent,
             };
 
-            IntPtr fs = Interop.PrjFSLib.New(
+            Interop.PrjFSLib.Fs fs = Interop.PrjFSLib.New(
                 storageRootFullPath,
                 virtualizationRootFullPath,
-                ref handlers,
-                (uint)Marshal.SizeOf<Interop.PrjFSLib.Handlers>(),
-                IntPtr.Zero);
+                 handlers);
 
-            if (fs == IntPtr.Zero)
+            if (fs == null)
             {
                 return Result.Invalid;
             }
@@ -63,7 +61,7 @@ namespace PrjFSLib.Linux
         public virtual void StopVirtualizationInstance()
         {
             Interop.PrjFSLib.Stop(this.mountHandle);
-            this.mountHandle = IntPtr.Zero;
+            this.mountHandle = null;
         }
 
         public virtual Result WriteFileContents(
