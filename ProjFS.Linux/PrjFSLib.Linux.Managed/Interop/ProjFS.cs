@@ -99,7 +99,7 @@ namespace PrjFSLib.Linux.Interop
         private static extern Errno _WriteFileContents(int fd, IntPtr bytes, ulong byteCount);
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct Event
+        public struct Event
         {
             public IntPtr Fs;
             public ulong Mask;
@@ -110,7 +110,7 @@ namespace PrjFSLib.Linux.Interop
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct Handlers
+        public struct Handlers
         {
             public EventHandler HandleProjEvent;
             public EventHandler HandleNotifyEvent;

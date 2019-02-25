@@ -9,7 +9,7 @@ namespace PrjFSLib.Linux
     {
         public const int PlaceholderIdLength = Interop.ProjFS.PlaceholderIdLength;
 
-        private Interop.ProjFS mountHandle;
+        private Interop.ProjFS projfs;
 
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
@@ -26,7 +26,7 @@ namespace PrjFSLib.Linux
             string virtualizationRootFullPath,
             uint poolThreadCount)
         {
-            if (this.mountHandle != null)
+            if (this.projfs != null)
             {
                 throw new InvalidOperationException();
             }
@@ -54,19 +54,19 @@ namespace PrjFSLib.Linux
                 return Result.Invalid;
             }
 
-            this.mountHandle = fs;
+            this.projfs = fs;
             return Result.Success;
         }
 
         public virtual void StopVirtualizationInstance()
         {
-            if (this.mountHandle == null)
+            if (this.projfs == null)
             {
                 return;
             }
 
-            this.mountHandle.Stop();
-            this.mountHandle = null;
+            this.projfs.Stop();
+            this.projfs = null;
         }
 
         public virtual Result WriteFileContents(
@@ -74,17 +74,15 @@ namespace PrjFSLib.Linux
             byte[] bytes,
             uint byteCount)
         {
-            GCHandle bytesHandle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-            try
+            unsafe
             {
-                return this.mountHandle.WriteFileContents(
-                    fd,
-                    bytesHandle.AddrOfPinnedObject(),
-                    byteCount);
-            }
-            finally
-            {
-                bytesHandle.Free();
+                fixed (byte* buffer = bytes)
+                {
+                    return this.projfs.WriteFileContents(
+                        fd,
+                        (IntPtr)buffer,
+                        byteCount);
+                }
             }
         }
 
@@ -110,7 +108,7 @@ namespace PrjFSLib.Linux
         public virtual Result WritePlaceholderDirectory(
             string relativePath)
         {
-            return this.mountHandle.CreateProjDir(relativePath);
+            return this.projfs.CreateProjDir(relativePath);
         }
 
         public virtual Result WritePlaceholderFile(
@@ -126,7 +124,7 @@ namespace PrjFSLib.Linux
                 throw new ArgumentException();
             }
 
-            return this.mountHandle.CreateProjFile(
+            return this.projfs.CreateProjFile(
                 relativePath,
                 fileSize,
                 fileMode);
@@ -136,7 +134,7 @@ namespace PrjFSLib.Linux
             string relativePath,
             string symLinkTarget)
         {
-            return this.mountHandle.CreateProjSymlink(
+            return this.projfs.CreateProjSymlink(
                 relativePath,
                 symLinkTarget);
         }
